@@ -26,3 +26,23 @@ def freeze(model):
     for layer in model.layers:
         layer.trainable = False
     return model
+
+
+def freeze_custom(model, first_unfrozen='regression_submodel'):
+    """ Sets all layers up to 'first_unfrozen' to non-trainable.
+
+    The weights for these layers will not be updated during training.
+
+    This function modifies the given model in-place, but it also returns the
+    modified model to allow easy chaining with other functions.
+    """
+    set_trainable = False
+    for layer in model.layers:
+        if layer == first_unfrozen:
+            set_trainable = True
+        if set_trainable:
+            layer.trainable = True
+        else:
+            layer.trainable = False
+
+    return model

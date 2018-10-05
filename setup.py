@@ -24,7 +24,9 @@ setuptools.setup(
     entry_points     = {
         'console_scripts': [
             'retinanet-train=keras_retinanet.bin.train:main',
+            'retinanet-train-dcm=keras_retinanet.bin.train_dcm:main',
             'retinanet-evaluate=keras_retinanet.bin.evaluate:main',
+            'retinanet-evaluate-dcm=keras_retinanet.bin.evaluate_dcm:main',
             'retinanet-debug=keras_retinanet.bin.debug:main',
             'retinanet-convert-model=keras_retinanet.bin.convert_model:main',
         ],
