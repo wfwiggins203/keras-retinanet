@@ -32,7 +32,7 @@ def read_image_dcm(path):
     """
     d = pydicom.dcmread(path)
     image = d.pixel_array
-    return image[:, :, ::-1].copy()
+    return np.stack([image] * 3, -1)
 
 
 def preprocess_image(x, mode='caffe'):

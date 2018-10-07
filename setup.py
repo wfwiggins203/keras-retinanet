@@ -28,6 +28,7 @@ setuptools.setup(
             'retinanet-evaluate=keras_retinanet.bin.evaluate:main',
             'retinanet-evaluate-dcm=keras_retinanet.bin.evaluate_dcm:main',
             'retinanet-debug=keras_retinanet.bin.debug:main',
+            'retinanet-debug-dcm=keras_retinanet.bin.debug_dcm:main',
             'retinanet-convert-model=keras_retinanet.bin.convert_model:main',
         ],
     },
