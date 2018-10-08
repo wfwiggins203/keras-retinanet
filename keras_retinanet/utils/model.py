@@ -38,7 +38,7 @@ def freeze_custom(model, first_unfrozen='regression_submodel'):
     """
     set_trainable = False
     for layer in model.layers:
-        if layer == first_unfrozen:
+        if layer.name == first_unfrozen:
             set_trainable = True
         if set_trainable:
             layer.trainable = True
