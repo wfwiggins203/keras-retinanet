@@ -114,23 +114,26 @@ def _get_annotations(generator):
     return all_annotations
 
 
-def _score_detections(generator, all_detections, all_annotations, score_threshold=0.05):
+def _score_detections(generator_size, all_detections, all_annotations, score_threshold=0.05):
     # process detections and annotations
     precisions = {}
     iou_thresholds = [0.40 + 0.05 * i for i in range(8)]
     label = 0   # only interested in pneumonia cases
-    
+
     for thresh in iou_thresholds:
         false_positives = 0.0
         true_positives  = 0.0
         false_negatives = 0.0
         num_annotations = 0.0
 
-        for i in range(generator.size()):
+        for i in range(generator_size): # need to change this so generator can be dropped
             detections           = all_detections[i][label]
             annotations          = all_annotations[i][label]
             num_annotations     += annotations.shape[0]
             detected_annotations = []
+
+            mask = detections[:, 4] > score_threshold
+            detections = detections[mask]
 
             if detections.shape[0] == 0:
                 if annotations.shape[0] > 0:
@@ -140,23 +143,24 @@ def _score_detections(generator, all_detections, all_annotations, score_threshol
             for d in detections:
                 if annotations.shape[0] == 0:
                     false_positives += 1
-                    break
+                    continue
 
                 overlaps            = compute_overlap(np.expand_dims(d, axis=0), annotations)
                 assigned_annotation = np.argmax(overlaps, axis=1)
                 max_overlap         = overlaps[0, assigned_annotation]
 
-                if max_overlap >= iou_threshold and assigned_annotation not in detected_annotations:
+                if max_overlap >= thresh and assigned_annotation not in detected_annotations:
                     true_positives  += 1
                     detected_annotations.append(assigned_annotation)
-                elif max_overlap < iou_threshold:   # ignores repeat detections (i.e. does not count as false positives)
+                else:
                     false_positives += 1
 
             false_negatives += annotations.shape[0] - len(detected_annotations)
 
         precision = true_positives / (true_positives + false_positives + false_negatives)
         precisions[thresh] = precision, num_annotations
-        return precisions
+
+    return precisions
 
 
 def evaluate(
@@ -181,6 +185,6 @@ def evaluate(
     all_detections     = _get_detections(generator, model, score_threshold=score_threshold, max_detections=max_detections, save_path=save_path)
     all_annotations    = _get_annotations(generator)
 
-    precisions = _score_detections(generator, all_detections, all_annotations, score_threshold=score_threshold)
+    precisions = _score_detections(generator.size(), all_detections, all_annotations, score_threshold=score_threshold)
 
     return precisions, all_detections, all_annotations

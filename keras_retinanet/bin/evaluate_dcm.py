@@ -32,7 +32,7 @@ if __name__ == "__main__" and __package__ is None:
 from .. import models
 from ..preprocessing.csv_generator_dcm import CSVGenerator
 from ..utils.config import read_config_file, parse_anchor_parameters
-from ..utils.eval_dcm import evaluate
+from ..utils.eval_dcm import evaluate, _score_detections
 from ..utils.keras_version import check_keras_version
 
 
@@ -77,7 +77,6 @@ def parse_args(args):
     parser.add_argument('--backbone',         help='The backbone of the model.', default='resnet50')
     parser.add_argument('--gpu',              help='Id of the GPU to use (as reported by nvidia-smi).')
     parser.add_argument('--score-threshold',  help='Threshold on score to filter detections with (defaults to 0.20).', default=0.20, type=float)
-    parser.add_argument('--iou-threshold',    help='IoU Threshold to count for a positive detection (defaults to 0.5).', default=0.5, type=float)
     parser.add_argument('--max-detections',   help='Max Detections per image (defaults to 100).', default=100, type=int)
     parser.add_argument('--save-path',        help='Path for saving images with detections (doesn\'t work for COCO).')
     parser.add_argument('--image-min-side',   help='Rescale the image so the smallest side is min_side.', type=int, default=512)
@@ -111,6 +110,7 @@ def main(args=None):
         args.config = read_config_file(args.config)
 
     # create the generator
+    print('Creating generator... This may take a minute.')
     generator = create_generator(args)
 
     # optionally load anchor parameters
@@ -119,7 +119,7 @@ def main(args=None):
         anchor_params = parse_anchor_parameters(args.config)
 
     # load the model
-    print('Loading model, this may take a second...')
+    print('Loading model...')
     model = models.load_model(args.model, backbone_name=args.backbone, convert=args.convert_model, anchor_params=anchor_params)
 
     # print model summary
@@ -129,29 +129,35 @@ def main(args=None):
     precisions, all_detections, all_annotations = evaluate(
         generator,
         model,
-        iou_threshold=args.iou_threshold,
         score_threshold=args.score_threshold,
         max_detections=args.max_detections,
         save_path=args.save_path
     )
 
-    # print evaluation
-    total_instances = []
-    avg_prec = []
-    for thresh, (precision, num_annotations) in precisions.items():
-        print('{:.0f} instances of pneumonia'.format(num_annotations),
-            'with precision: {:.4f} at IOU threshold {:.2f}'.format(precision, thresh))
-        total_instances.append(num_annotations)
-        avg_prec.append(precision)
+    # loop over scores thresholds ranging from 0.20 to 0.50 at 0.025 intervals
+    score_thresholds = [args.score_threshold + 0.025 * i for i in range(13)]
 
-    if sum(total_instances) == 0:
-        print('No test instances found.')
-        return
+    for score in score_thresholds:
+        if score > args.score_threshold:
+            precisions = _score_detections(generator.size(), all_detections, all_annotations, score_threshold=score)
+        print("\n")
+        # print evaluation
+        total_instances = []
+        avg_prec = []
+        for thresh, (precision, num_annotations) in precisions.items():
+            print('{:.0f} instances of pneumonia'.format(num_annotations),
+                'with precision: {:.4f} at IOU threshold {:.2f}'.format(precision, thresh))
+            total_instances.append(num_annotations)
+            avg_prec.append(precision)
 
-    if args.weighted_average:
-        print('mAP: {:.4f}'.format(sum([a * b for a, b in zip(total_instances, avg_prec)]) / sum(total_instances)))
-    else:
-        print('mAP: {:.4f}'.format(sum(avg_prec) / sum(x > 0 for x in total_instances)))
+        if sum(total_instances) == 0:
+            print('No test instances found.')
+            return
+
+        if args.weighted_average:
+            print('AP: {:.4f} at score threshold {:.2f}'.format(sum([a * b for a, b in zip(total_instances, avg_prec)]) / sum(total_instances), score))
+        else:
+            print('AP: {:.4f} at score threshold {:.2f}'.format(sum(avg_prec) / sum(x > 0 for x in total_instances), score))
 
 
 if __name__ == '__main__':

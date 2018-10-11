@@ -223,13 +223,14 @@ def create_generators(args, preprocess_image):
             max_shear=0.2,
             min_scaling=(0.8, 0.8),
             max_scaling=(1.2, 1.2),
-            flip_x_chance=0.5,
+            flip_x_chance=0.05,
             flip_y_chance=0,
         )
     else:
         transform_generator = random_transform_generator(flip_x_chance=0.5)
 
     if args.dataset_type == 'csv':
+        print('Creating training generator... This may take a couple of minutes.')
         train_generator = CSVGenerator(
             args.annotations,
             args.classes,
@@ -238,6 +239,7 @@ def create_generators(args, preprocess_image):
         )
 
         if args.val_annotations:
+            print('Creating validation generator... This may take a minute.')
             validation_generator = CSVGenerator(
                 args.val_annotations,
                 args.classes,
@@ -309,14 +311,14 @@ def parse_args(args):
     parser.add_argument('--multi-gpu',        help='Number of GPUs to use for parallel processing.', type=int, default=0)
     parser.add_argument('--multi-gpu-force',  help='Extra flag needed to enable (experimental) multi-gpu support.', action='store_true')
     parser.add_argument('--epochs',           help='Number of epochs to train.', type=int, default=10)
-    parser.add_argument('--steps',            help='Number of steps per epoch.', type=int, default=2200)
+    parser.add_argument('--steps',            help='Number of steps per epoch.', type=int, default=2700)
     parser.add_argument('--score-threshold',  help='Confidence score threshold for evaluating model during training.', type=float, default=0.20)
     parser.add_argument('--snapshot-path',    help='Path to store snapshots of models during training (defaults to \'./snapshots\')', default='./snapshots')
     parser.add_argument('--tensorboard-dir',  help='Log directory for Tensorboard output', default='./logs')
     parser.add_argument('--no-snapshots',     help='Disable saving snapshots.', dest='snapshots', action='store_false')
     parser.add_argument('--no-evaluation',    help='Disable per epoch evaluation.', dest='evaluation', action='store_false')
     parser.add_argument('--freeze-backbone',  help='Freeze training of backbone layers.', action='store_true')
-    parser.add_argument('--freeze-custom',    help='Freeze training of specified layers per function.', action='store_true')
+    parser.add_argument('--freeze-custom',    help='Freeze training of specified layers, starting with the specified layer.')
     parser.add_argument('--random-transform', help='Randomly transform image and annotations.', action='store_true')
     parser.add_argument('--image-min-side',   help='Rescale the image so the smallest side is min_side.', type=int, default=512)
     parser.add_argument('--image-max-side',   help='Rescale the image if the largest side is larger than max_side.', type=int, default=512)
@@ -352,7 +354,7 @@ def main(args=None):
 
     # create the model
     if args.snapshot is not None:
-        print('Loading model, this may take a second...')
+        print('Loading model...')
         model            = models.load_model(args.snapshot, backbone_name=args.backbone)
         training_model   = model
         anchor_params    = None
@@ -365,7 +367,7 @@ def main(args=None):
         if weights is None and args.imagenet_weights:
             weights = backbone.download_imagenet()
 
-        print('Creating model, this may take a second...')
+        print('Creating model... This may take a minute.')
         model, training_model, prediction_model = create_models(
             backbone_retinanet=backbone.retinanet,
             num_classes=train_generator.num_classes(),
@@ -375,8 +377,8 @@ def main(args=None):
             config=args.config
         )
 
-    if args.freeze_custom:
-        training_model = freeze_custom(training_model, 'regression_submodel')
+    if args.freeze_custom is not None:
+        training_model = freeze_custom(training_model, first_unfrozen=args.freeze_custom)
         training_model.compile(
             loss={
                 'regression'    : losses.smooth_l1(),
