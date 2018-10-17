@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import keras.backend as K
 
 def freeze(model):
     """ Set all layers in a model to non-trainable.
@@ -23,6 +24,7 @@ def freeze(model):
     This function modifies the given model in-place,
     but it also returns the modified model to allow easy chaining with other functions.
     """
+    K.set_learning_phase(0)
     for layer in model.layers:
         layer.trainable = False
     return model
@@ -40,6 +42,7 @@ def freeze_custom(model, first_unfrozen='regression_submodel'):
     for layer in model.layers:
         if layer.name == first_unfrozen:
             set_trainable = True
+            K.set_learning_phase(1)
         if set_trainable:
             layer.trainable = True
         else:
